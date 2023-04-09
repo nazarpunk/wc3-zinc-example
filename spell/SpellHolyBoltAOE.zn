@@ -1,0 +1,112 @@
+
+library SpellHolyBoltAOE {
+    /* === Создаёмм необходимые переменные, что упростит нам реализацию заклинания === */
+    
+    group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
+    unit caster, target;
+    real x, y, range, heal, damage, life, data[];
+    boolean isEnemy, isUndead;
+    integer level;
+
+    /* === Настройки заклинания === */    
+    
+    constant integer abilityId = 'SHhb'; // Способность для героя
+    
+    // Что делать с дружественной нежитью
+    constant integer allyUndeadAction = 0; // 0 - ничего, 1 - лечить, 2 - наносить урон
+
+    // Что делать с враждебной НЕ нежитью
+    constant integer enemyNoUndeadAction = 0; // 0 - ничего, 1 - лечить, 2 - наносить урон
+    
+    constant string spellEffect = "HolyLight.mdx";
+    constant string spellEffectAttach = "origin";
+    
+    constant attacktype attackType = ATTACK_TYPE_MAGIC; 
+    
+    // Указываем радиус захвата заклинания
+    function getRange(integer level) -> real {
+        data[1] = 100; // 1 уровень
+        data[2] = 200; // 2 уровень
+        data[3] = 300; // 3 уровень
+        return data[level];
+    }
+    
+    // Указываем количество вылеченных хитпоинтов
+    function getHeal(integer level) -> real {
+        data[1] = 200; // 1 уровень
+        data[2] = 400; // 2 уровень
+        data[3] = 600; // 3 уровень
+        return data[level];
+    }
+    
+    // Указываем количество нанесённого урона
+    function getDamage(integer level) -> real {
+        data[1] = 100; // 1 уровень
+        data[2] = 200; // 2 уровень
+        data[3] = 300; // 3 уровень
+        return data[level];
+    }
+
+    // На кого действует заклинание
+    function isTarget() -> boolean {
+        if (IsUnitType(target, UNIT_TYPE_STRUCTURE)) return false; // Отсеиваем здания
+        if (IsUnitType(target, UNIT_TYPE_MECHANICAL)) return false; // Отсеиваем механических юнитов
+        if (IsUnitType(target, UNIT_TYPE_FLYING)) return false; // Отсеиваем летающих юнитов
+        if (caster == target) return false; // Отсеиваем кастера
+        return true;
+    }
+    
+    /* === Реализация заклинания  === */
+    
+    function onInit() {
+        trigger t = CreateTrigger();
+        integer i;
+        
+        // Слушаем событие каста для всех игроков, экономя лишний вызов функции
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
+            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        }
+        TriggerAddAction(t, function() {
+            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            caster = GetTriggerUnit();
+            level = GetUnitAbilityLevel(caster, abilityId);
+            x = GetSpellTargetX();
+            y = GetSpellTargetY();
+            range = getRange(level);
+
+            GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
+            GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
+            
+            heal = getHeal(level);
+            damage = getDamage(level);
+            ForGroup(g, function() {
+                target = GetEnumUnit();
+                if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
+                if (!IsUnitInRangeXY(target, x, y, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
+                isEnemy = IsPlayerEnemy(GetOwningPlayer(caster), GetOwningPlayer(target));
+                isUndead = IsUnitType(target, UNIT_TYPE_UNDEAD);
+                if (!isTarget()) return; // Отсеиваем цели
+                if (!isEnemy && isUndead && allyUndeadAction == 0) return; // Отсеиваем дружественную нежить, если она игнорируется
+                if (isEnemy && !isUndead && enemyNoUndeadAction == 0) return; // Отсеиваем враждебную НЕ нежить, если она игнорируется
+                
+                DestroyEffect(AddSpecialEffectTarget(spellEffect, target, spellEffectAttach)); // Создаём эффект
+
+                life = GetUnitState(target, UNIT_STATE_LIFE);
+
+                // Лечим
+                if (life < GetUnitState(target, UNIT_STATE_MAX_LIFE) &&
+                    ((!isUndead && !isEnemy) ||
+                    (allyUndeadAction == 1 && isUndead && !isEnemy) ||
+                    (enemyNoUndeadAction == 1 && !isUndead && isEnemy))
+                    ) SetUnitState(target, UNIT_STATE_LIFE, life + heal);
+
+                // Наносим урон
+                if (
+                    (isUndead && isEnemy) ||
+                    (allyUndeadAction == 2 && isUndead && !isEnemy) ||
+                    (enemyNoUndeadAction == 2 && !isUndead && isEnemy)
+                    ) UnitDamageTarget(caster, target, damage, true, false, attackType, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
+            });
+        });
+    }
+}

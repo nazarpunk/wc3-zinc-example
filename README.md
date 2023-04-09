@@ -1,1 +1,1 @@
-# wc3-zinc-example
+- [Благодать AOE](https://xgm.guru/p/wc3/holybolt-aoe)
