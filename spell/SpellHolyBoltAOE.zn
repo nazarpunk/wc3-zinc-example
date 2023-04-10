@@ -24,7 +24,7 @@ library SpellHolyBoltAOE {
     constant attacktype attackType = ATTACK_TYPE_MAGIC; 
     
     // Указываем радиус захвата заклинания
-    function getRange(integer level) -> real {
+    function getRange() -> real {
         data[1] = 100; // 1 уровень
         data[2] = 200; // 2 уровень
         data[3] = 300; // 3 уровень
@@ -32,7 +32,7 @@ library SpellHolyBoltAOE {
     }
     
     // Указываем количество вылеченных хитпоинтов
-    function getHeal(integer level) -> real {
+    function getHeal() -> real {
         data[1] = 200; // 1 уровень
         data[2] = 400; // 2 уровень
         data[3] = 600; // 3 уровень
@@ -40,7 +40,7 @@ library SpellHolyBoltAOE {
     }
     
     // Указываем количество нанесённого урона
-    function getDamage(integer level) -> real {
+    function getDamage() -> real {
         data[1] = 100; // 1 уровень
         data[2] = 200; // 2 уровень
         data[3] = 300; // 3 уровень

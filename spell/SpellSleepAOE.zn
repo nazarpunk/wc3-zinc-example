@@ -1,0 +1,73 @@
+library SpellSleepAOE {
+    /* == Создаём необходимые переменные == */
+
+    group g = CreateGroup();
+    unit caster, target, dummy;
+    real x, y, range, data[];
+    boolean isEnemy;
+    integer level;
+
+    /* == Настройки заклинания == */
+
+    constant integer abilityHero = 'A000'; // Способность для героя.
+    constant integer abilityDummy = 'A001'; // Способность для дамми. В ней производится настройка всех параметров
+    constant integer abilityDummyOrder = 852227/*sleep*/; // Id приказа для дамми способности
+    
+    constant integer dummyId = 'u000'; // Равкод дамми кастера
+    constant player dummyOwner = Player(PLAYER_NEUTRAL_PASSIVE); // Владелец дамми кастера
+
+    // Указываем радиус захвата заклинания
+    function getRange() -> real {
+        data[1] = 200; // 1 уровень
+        data[2] = 300; // 2 уровень
+        data[3] = 400; // 3 уровень
+        return data[level];
+    }
+
+    // На кого действует заклинание
+    function isTarget() -> boolean {
+        if (IsUnitType(target, UNIT_TYPE_STRUCTURE)) return false; // Отсеиваем здания
+        if (IsUnitType(target, UNIT_TYPE_MECHANICAL)) return false; // Отсеиваем механических юнитов
+        if (caster == target) return false; // Отсеиваем кастера
+        return true;
+    }
+
+    /* === Реализация заклинания  === */
+
+    function onInit(){
+        trigger t = CreateTrigger();
+        integer i;
+        dummy = CreateUnit(dummyOwner dummyId  0, 0);
+        UnitAddAbility(dummy, abilityDummy);
+        
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
+            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        }
+        TriggerAddAction(t, function(){
+            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            caster = GetTriggerUnit();
+            level = GetUnitAbilityLevel(caster, abilityId);
+            x = GetSpellTargetX();
+            y = GetSpellTargetY();
+            range = getRange(level);
+
+            GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
+            GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
+
+            SetUnitAbilityLevel(dummy, abilityDummy, level);
+
+            ForGroup(g, function() {
+                target = GetEnumUnit();
+                if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
+                if (!IsUnitInRangeXY(target, x, y, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
+                isEnemy = IsPlayerEnemy(GetOwningPlayer(caster), GetOwningPlayer(target));
+                if (!isTarget()) return; // Отсеиваем цели
+                SetUnitX(dummy, GetUnitX(target));
+                SetUnitY(dummy, GetUnitY(target));
+                IssueTargetOrderByid(dummy, abilityDummyrder, target);
+            });
+        });
+
+        t = null;
+    }
+}
