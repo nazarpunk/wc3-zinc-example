@@ -9,11 +9,11 @@ library SpellSleepAOE {
 
     /* == Настройки заклинания == */
 
-    constant integer abilityHero = 'A000'; // Способность для героя.
-    constant integer abilityDummy = 'A001'; // Способность для дамми. В ней производится настройка всех параметров
+    constant integer abilityHero = 'SUsl'; // Способность для героя.
+    constant integer abilityDummy = 'CUsl'; // Способность для дамми. В ней производится настройка всех параметров
     constant integer abilityDummyOrder = 852227/*sleep*/; // Id приказа для дамми способности
     
-    constant integer dummyId = 'u000'; // Равкод дамми кастера
+    constant integer dummyId = 'dumy'; // Равкод дамми кастера
     constant player dummyOwner = Player(PLAYER_NEUTRAL_PASSIVE); // Владелец дамми кастера
 
     // Указываем радиус захвата заклинания
@@ -29,6 +29,7 @@ library SpellSleepAOE {
         if (IsUnitType(target, UNIT_TYPE_STRUCTURE)) return false; // Отсеиваем здания
         if (IsUnitType(target, UNIT_TYPE_MECHANICAL)) return false; // Отсеиваем механических юнитов
         if (caster == target) return false; // Отсеиваем кастера
+        if (!IsPlayerEnemy(GetOwningPlayer(caster), GetOwningPlayer(target))) return false; // Отсеиваем союзников
         return true;
     }
 
@@ -37,19 +38,19 @@ library SpellSleepAOE {
     function onInit(){
         trigger t = CreateTrigger();
         integer i;
-        dummy = CreateUnit(dummyOwner dummyId  0, 0);
+        dummy = CreateUnit(dummyOwner, dummyId, 0, 0, 0);
         UnitAddAbility(dummy, abilityDummy);
-        
+
         for (0 <= i < bj_MAX_PLAYER_SLOTS) {
             TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         }
         TriggerAddAction(t, function(){
-            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            if (abilityHero != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
-            level = GetUnitAbilityLevel(caster, abilityId);
+            level = GetUnitAbilityLevel(caster, abilityHero);
             x = GetSpellTargetX();
             y = GetSpellTargetY();
-            range = getRange(level);
+            range = getRange();
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
             GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
@@ -60,11 +61,10 @@ library SpellSleepAOE {
                 target = GetEnumUnit();
                 if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
                 if (!IsUnitInRangeXY(target, x, y, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
-                isEnemy = IsPlayerEnemy(GetOwningPlayer(caster), GetOwningPlayer(target));
                 if (!isTarget()) return; // Отсеиваем цели
                 SetUnitX(dummy, GetUnitX(target));
                 SetUnitY(dummy, GetUnitY(target));
-                IssueTargetOrderByid(dummy, abilityDummyrder, target);
+                IssueTargetOrderById(dummy, abilityDummyOrder, target);
             });
         });
 

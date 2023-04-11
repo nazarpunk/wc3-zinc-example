@@ -72,13 +72,13 @@ library SpellHolyBoltAOE {
             level = GetUnitAbilityLevel(caster, abilityId);
             x = GetSpellTargetX();
             y = GetSpellTargetY();
-            range = getRange(level);
+            range = getRange();
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
             GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
             
-            heal = getHeal(level);
-            damage = getDamage(level);
+            heal = getHeal();
+            damage = getDamage();
             ForGroup(g, function() {
                 target = GetEnumUnit();
                 if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
