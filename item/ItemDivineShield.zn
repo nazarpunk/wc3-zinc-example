@@ -1,0 +1,174 @@
+library ItemDivineShield {
+    /* === Создаёмм необходимые переменные === */
+
+
+
+    /* === Настройки предмета === */
+    constant integer itemActiveId = 'Idsa'; // Активный предмет
+    constant integer itemPassiveId = 'Idsp'; // Пассивный предмет
+    constant real itemCooldown = 20; // Перезарядка способности предмета
+
+    trigger DAMAGE_DETECT_TRIGGER = CreateTrigger();
+    region mapInitialPlayableRegion;
+    
+    hashtable HandleHT = InitHashtable(); // Хэштаблица, можете вписать туда вашу, например:
+
+    function itemReplaceInstantly(unit u, integer from, integer to){
+        integer i, slot[], slotI = -1;
+        item it;
+        for(0 <= i < bj_MAX_INVENTORY){
+            it = UnitItemInSlot(u, i);
+            if (GetItemTypeId(it) == from){
+                RemoveItem(it);
+                slotI = slotI + 1;
+                slot[slotI] = i;
+            }
+        }
+        for(0 <= i <= slotI){
+            UnitAddItemToSlotById(u, to, slot[i]);
+        }
+        it = null;
+    }
+    
+    function itemReplaceDelayed(unit u, integer from, integer to){
+        timer t = CreateTimer();
+        integer pk = GetHandleId(t);
+        SaveUnitHandle(HandleHT, pk, 0, u);
+        SaveInteger(HandleHT, pk, 0, from);
+        SaveInteger(HandleHT, pk, 1, to);
+        TimerStart(t, 0.03125, true, function(){
+            timer t = GetExpiredTimer();
+            integer pk = GetHandleId(t);
+            unit u = LoadUnitHandle(HandleHT, pk, 0);
+            if (UnitAlive(u)){
+                itemReplaceInstantly(u, LoadInteger(HandleHT, pk, 0), LoadInteger(HandleHT, pk, 1));
+                FlushChildHashtable(HandleHT, pk);
+                PauseTimer(t); DestroyTimer(t);
+            }
+            u = null;
+            t = null;
+        });
+        t = null;
+    }
+    
+    function itemReplace(unit u, integer from, integer to){
+        if (UnitAlive(u)){
+            itemReplaceInstantly(u, from, to);
+        } else {
+            itemReplaceDelayed(u, from, to);
+        }
+    }
+    
+    function itemCount(unit u, integer c) -> integer {
+        integer i, count = 0;
+        item it;
+        for(0 <= i < bj_MAX_INVENTORY){
+            it = UnitItemInSlot(u, i);
+            if(GetItemTypeId(it) == c){
+                count = count + 1;
+            }
+        }
+        it = null;
+        return count;
+    }
+
+    function addUnitToDetect() -> boolean {
+        unit u = GetFilterUnit();
+        if (IsUnitType(u, UNIT_TYPE_HERO)){
+            TriggerRegisterUnitEvent(DAMAGE_DETECT_TRIGGER, u, EVENT_UNIT_DAMAGED);
+        }
+        u = null;
+        return false;
+    }
+    
+    function onInit(){
+        trigger itemPickup = CreateTrigger();
+
+
+        
+        integer i;
+
+
+        for(0 <= i <= 2){ t[i] = CreateTrigger(); }
+
+        mapInitialPlayableRegion = CreateRegion();
+        RegionAddRect(mapInitialPlayableRegion, bj_mapInitialPlayableArea);
+        
+        t[0] = CreateTrigger();
+        TriggerRegisterEnterRegion(t[0], mapInitialPlayableRegion, null);
+        TriggerAddCondition(t[0], function addUnitToDetect);
+        
+        GroupEnumUnitsInRect(g, bj_mapInitialPlayableArea, function addUnitToDetect);
+        GroupClear(g); DestroyGroup(g); g = null;
+        
+        TriggerAddCondition(DAMAGE_DETECT_TRIGGER, Condition(function() -> boolean {
+            unit u = GetTriggerUnit();
+            item it;
+            integer i, pk;
+            real dmg = GetEventDamage();
+            timer t;
+            if (
+                dmg > 0
+                &&
+                GetUnitCurrentOrder(u) != 851973
+                &&
+                itemCount(u, itemPassiveId) > 0
+                &&
+                GetWidgetLife(u) - dmg <= GetUnitState(u, UNIT_STATE_MAX_LIFE) * 0.1
+            ){
+                itemReplace(u, itemPassiveId, itemActiveId);
+                for(0 <= i < bj_MAX_INVENTORY){
+                    it = UnitItemInSlot(u, i);
+                    if(GetItemTypeId(it) == itemActiveId){
+                        UnitUseItem(u, it);
+                        break;
+                    }
+                }
+                
+                t = CreateTimer();
+                pk = GetHandleId(t);
+                SaveUnitHandle(HandleHT, pk, 0, u);
+                TimerStart(t, itemCooldown - 0.01, false, function(){
+                    timer t = GetExpiredTimer();
+                    integer pk = GetHandleId(t);
+                    unit u = LoadUnitHandle(HandleHT, pk, 0);
+                    itemReplace(u, itemActiveId, itemPassiveId);
+                    u = null;
+                    FlushChildHashtable(HandleHT, pk);
+                    PauseTimer(t); DestroyTimer(t); t = null;
+                });
+            }
+            
+            u = null;
+            it = null;
+            t = null;
+            return false;
+        }));
+        
+        for(0 <= i < bj_MAX_PLAYER_SLOTS){
+            TriggerRegisterPlayerUnitEvent(t[1], Player(i), EVENT_PLAYER_UNIT_PICKUP_ITEM, null);
+            TriggerRegisterPlayerUnitEvent(t[2], Player(i), EVENT_PLAYER_UNIT_DEATH, null);
+        }
+        TriggerAddCondition(t[1], Condition(function() -> boolean {
+            unit u = GetTriggerUnit();
+            item it = GetManipulatedItem();
+            
+            if (GetItemTypeId(it) == itemPassiveId && itemCount(u, itemActiveId) > 0){
+                itemReplace(u, itemPassiveId, itemActiveId);
+            }
+            u = null;
+            it = null;
+            return false;
+        }));
+        TriggerAddCondition(t[2], Condition(function() -> boolean {
+            unit u = GetTriggerUnit();
+            if (itemCount(u, itemActiveId) > 0){
+                itemReplace(u, itemActiveId, itemPassiveId);
+            }
+            u = null;
+            return false;
+        }));
+        
+        for(0 <= i <= 2){t[i] = null;}
+    }
+}

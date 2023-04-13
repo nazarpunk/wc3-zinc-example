@@ -12,7 +12,7 @@ library SpellSleepAOE {
     constant integer abilityHero = 'SUsl'; // Способность для героя.
     constant integer abilityDummy = 'CUsl'; // Способность для дамми. В ней производится настройка всех параметров
     constant integer abilityDummyOrder = 852227/*sleep*/; // Id приказа для дамми способности
-    
+
     constant integer dummyId = 'dumy'; // Равкод дамми кастера
     constant player dummyOwner = Player(PLAYER_NEUTRAL_PASSIVE); // Владелец дамми кастера
 

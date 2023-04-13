@@ -1,28 +1,28 @@
 
 library SpellHolyBoltAOE {
     /* === Создаёмм необходимые переменные, что упростит нам реализацию заклинания === */
-    
+
     group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
     unit caster, target;
     real x, y, range, heal, damage, life, data[];
     boolean isEnemy, isUndead;
     integer level;
 
-    /* === Настройки заклинания === */    
-    
+    /* === Настройки заклинания === */
+
     constant integer abilityId = 'SHhb'; // Способность для героя
-    
+
     // Что делать с дружественной нежитью
     constant integer allyUndeadAction = 0; // 0 - ничего, 1 - лечить, 2 - наносить урон
 
     // Что делать с враждебной НЕ нежитью
     constant integer enemyNoUndeadAction = 0; // 0 - ничего, 1 - лечить, 2 - наносить урон
-    
+
     constant string spellEffect = "HolyLight.mdx";
     constant string spellEffectAttach = "origin";
-    
+
     constant attacktype attackType = ATTACK_TYPE_MAGIC; 
-    
+
     // Указываем радиус захвата заклинания
     function getRange() -> real {
         data[1] = 100; // 1 уровень
@@ -30,7 +30,7 @@ library SpellHolyBoltAOE {
         data[3] = 300; // 3 уровень
         return data[level];
     }
-    
+
     // Указываем количество вылеченных хитпоинтов
     function getHeal() -> real {
         data[1] = 200; // 1 уровень
@@ -38,7 +38,7 @@ library SpellHolyBoltAOE {
         data[3] = 600; // 3 уровень
         return data[level];
     }
-    
+
     // Указываем количество нанесённого урона
     function getDamage() -> real {
         data[1] = 100; // 1 уровень
@@ -55,13 +55,13 @@ library SpellHolyBoltAOE {
         if (caster == target) return false; // Отсеиваем кастера
         return true;
     }
-    
+
     /* === Реализация заклинания  === */
-    
+
     function onInit() {
         trigger t = CreateTrigger();
         integer i;
-        
+
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
         for (0 <= i < bj_MAX_PLAYER_SLOTS) {
             TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
@@ -76,7 +76,7 @@ library SpellHolyBoltAOE {
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
             GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
-            
+
             heal = getHeal();
             damage = getDamage();
             ForGroup(g, function() {
@@ -88,7 +88,7 @@ library SpellHolyBoltAOE {
                 if (!isTarget()) return; // Отсеиваем цели
                 if (!isEnemy && isUndead && allyUndeadAction == 0) return; // Отсеиваем дружественную нежить, если она игнорируется
                 if (isEnemy && !isUndead && enemyNoUndeadAction == 0) return; // Отсеиваем враждебную НЕ нежить, если она игнорируется
-                
+
                 DestroyEffect(AddSpecialEffectTarget(spellEffect, target, spellEffectAttach)); // Создаём эффект
 
                 life = GetUnitState(target, UNIT_STATE_LIFE);

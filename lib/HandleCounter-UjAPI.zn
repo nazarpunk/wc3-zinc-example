@@ -1,0 +1,23 @@
+library HandleCounter {
+    framehandle gui, menu, left, right;
+    real seconds = 0, period = .25;
+
+    function onInit() {
+        TimerStart(CreateTimer(), 0, false, function() {
+            DestroyTimer(GetExpiredTimer());
+            gui = GetOriginFrame(ORIGIN_FRAME_GAME_UI, 0);            
+            menu = CreateFrame('LoadingPlayerSlot', gui, 0, 0);
+            SetFrameSize(menu, .16, .03);
+            SetFrameRelativePoint(menu, FRAMEPOINT_BOTTOM, gui, FRAMEPOINT_BOTTOM, 0, .16);
+        
+            left = GetFrameByName('LoadingPlayerSlotName', 0);
+            right = GetFrameByName('LoadingPlayerSlotRace', 0);
+
+            TimerStart(CreateTimer(), period, true, function() {
+                seconds += period;
+                SetFrameText(left, I2S(GetHandleCount()));
+                SetFrameText(right, I2S(R2I(seconds)));
+            });
+        });
+    }
+}

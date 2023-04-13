@@ -1,1 +1,2 @@
 - [Благодать AOE](https://xgm.guru/p/wc3/holybolt-aoe)
+- [Сон AOE](https://xgm.guru/p/wc3/sleep-aoe)

@@ -1,0 +1,12 @@
+
+
+/*
+UnitAddAbility
+GetUnitAbility
+CastAbilityTarget
+UnitRemoveAbility
+Или же, ещё круче.
+UnitAddAbility
+CastTargetAbility
+SetAbilityVisible( abil, false )
+*/
