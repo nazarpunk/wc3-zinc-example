@@ -1,22 +1,20 @@
-library SpellHolyBoltAOE_UjAPI {
-    /* === Создаёмм необходимые переменные, что упростит нам реализацию заклинания === */
+library SpellHolyBoltAOE {
+   /* === Настройки заклинания === */
+
+   constant integer abilityIconId = 'SHhb'; // Видимая способность для изучения героем
+   constant integer abilityCastId = 'CHhb'; // Способность, которая будет кастована на юнита
+
+   /* === Реализация заклинания === */
 
     group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
     unit caster, target;
-    real x, y, range, damage;
-    integer level;
+    real x, y, range, damage, hp;
+    integer level, count, i;
     ability abilityIcon, abilityCast;
-
-    /* === Настройки заклинания === */
-
-    constant integer abilityIconId = 'SHhb'; // Видимая способность для изучения героем
-    constant integer abilityCastId = 'CHhb'; // Способность, которая будет кастована на юнита
-
-    /* === Реализация заклинания === */
+    boolean hasCast;
 
     function onInit() {
         trigger t = CreateTrigger();
-        integer i;
 
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
         for (0 <= i < bj_MAX_PLAYER_SLOTS) {
@@ -30,26 +28,28 @@ library SpellHolyBoltAOE_UjAPI {
             y = GetSpellTargetY();
             abilityIcon = GetUnitAbility(caster, abilityIconId);
 
-            /*TODO insert correct field*/range = GetAbilityRealLevelField(abilityCast, ABILITY_RLF_RANGE, level - 1);
+            range = GetAbilityRealLevelField(abilityIcon, ABILITY_RLF_AREA_OF_EFFECT, level - 1);
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
             GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
 
-            if (GroupGetCount(g) == 0) return; // Выходим из функции при пустой группе.
+            count = GroupGetCount(g);
+            if (count == 0) return; // Выходим из функции при пустой группе.
 
             // Добавляем скрытую абилку, которая будет прокастована на каждого юнита
             if (GetUnitAbilityLevel(caster, abilityCastId) == 0) UnitAddAbility(caster, abilityCastId);
             SetUnitAbilityLevel(caster, abilityCastId, level);
             abilityCast = GetUnitAbility(caster, abilityCastId);
             ShowAbility(abilityCast, false);
-            
+
             // Кастуем абилку на каждого юнита в группе
-            ForGroup(g, function() {
-                target = GetEnumUnit();
-                if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
-                if (!IsUnitInRangeXY(target, x, y, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
-                CastAbilityTarget(abilityCast, target);
-            });
+            for(0 <= i < count){
+                target = GroupGetUnitByIndex(g, i);
+                // Проверяем живых юнитов в зоне действия
+                if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range)) {
+                    CastAbilityTarget(abilityCast, target);
+                }
+            }
         });
     }
 }
