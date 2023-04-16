@@ -108,5 +108,7 @@ library SpellHolyBoltAOE {
                     ) UnitDamageTarget(caster, target, damage, true, false, attackType, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
             });
         });
+
+        t = null;
     }
 }

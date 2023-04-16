@@ -1,0 +1,53 @@
+library SpellIllusionBlink requires optional HandleHT {
+    /* === Настройки заклинания === */
+
+    constant integer blinkId = 'SEbl'; // Ид кастомного блинка
+    constant integer illusionId = 'CIil';
+
+    /* === Реализация заклинания === */
+    hashtable ht;
+    unit caster;
+    integer level;
+    real ux, uy, tx, ty;
+    ability illusion;
+
+    function onInit() {
+        trigger t = CreateTrigger();
+        integer i;
+
+        // Используем единую хэштаблицу 
+        static if (LIBRARY_HandleHT) ht = HandleHT;
+        else ht = InitHashtable();
+
+        // Слушаем событие каста для всех игроков, экономя лишний вызов функции
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
+            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        }
+        TriggerAddAction(t, function() {
+            if (blinkId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            caster = GetTriggerUnit();
+            level = GetUnitAbilityLevel(caster, blinkId);
+            // Получаем координаты юнита на момент каста
+            ux = GetUnitX(caster);
+            uy = GetUnitY(caster);
+
+            // Получаем координаты юнита после каста учитывая коллизию.
+            tx = GetSpellTargetX();
+            ty = GetSpellTargetY();
+
+            // Добавляем способность иллюзий и кастуем её
+            if (GetUnitAbilityLevel(caster, illusionId) == 0) UnitAddAbility(caster, illusionId);
+            SetUnitAbilityLevel(caster, illusionId, level);
+            illusion = GetUnitAbility(caster, illusionId);
+            ShowAbility(illusion, false);
+            CastAbilityTarget(illusion, caster);
+
+            
+
+            //call TriggerRegisterUnitEvent( gg_trg_test, gg_unit_Ewar_0001, EVENT_UNIT_SUMMON )
+
+        });
+
+        t = null;
+    }
+}

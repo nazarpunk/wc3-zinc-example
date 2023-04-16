@@ -51,5 +51,7 @@ library SpellHolyBoltAOE {
                 }
             }
         });
+
+        t = null;
     }
 }
