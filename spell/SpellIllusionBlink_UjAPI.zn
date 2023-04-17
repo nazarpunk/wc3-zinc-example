@@ -6,16 +6,16 @@ library SpellIllusionBlink requires optional HandleHT {
 
     /* === Реализация заклинания === */
     hashtable ht;
-    unit caster;
+    unit caster, illusionUnit;
     integer level;
-    real ux, uy, tx, ty;
-    ability illusion;
+    ability illusionAbility;
+    trigger trig;
 
     function onInit() {
         trigger t = CreateTrigger();
         integer i;
 
-        // Используем единую хэштаблицу 
+        // Используем единую хэштаблицу для хранения данных на хэндлах
         static if (LIBRARY_HandleHT) ht = HandleHT;
         else ht = InitHashtable();
 
@@ -27,24 +27,28 @@ library SpellIllusionBlink requires optional HandleHT {
             if (blinkId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
             level = GetUnitAbilityLevel(caster, blinkId);
-            // Получаем координаты юнита на момент каста
-            ux = GetUnitX(caster);
-            uy = GetUnitY(caster);
 
-            // Получаем координаты юнита после каста учитывая коллизию.
-            tx = GetSpellTargetX();
-            ty = GetSpellTargetY();
+            // Создаём динамический триггер для того, чтоб отследить иллюзию
+            trig  = CreateTrigger();
+            TriggerRegisterUnitEvent(trig, caster, EVENT_UNIT_SUMMON);
+            TriggerAddAction(trig, function(){
+                caster = GetSummoningUnit();
+                illusionUnit = GetSummonedUnit();
+                SetUnitX(illusionUnit, GetUnitX(caster));
+                SetUnitY(illusionUnit, GetUnitY(caster));
+                SetUnitFacingEx(illusionUnit, GetUnitFacing(caster), true);
+
+                trig = GetTriggeringTrigger();
+                TriggerClearActions(trig);
+                DestroyTrigger(trig);
+            });
 
             // Добавляем способность иллюзий и кастуем её
             if (GetUnitAbilityLevel(caster, illusionId) == 0) UnitAddAbility(caster, illusionId);
             SetUnitAbilityLevel(caster, illusionId, level);
-            illusion = GetUnitAbility(caster, illusionId);
-            ShowAbility(illusion, false);
-            CastAbilityTarget(illusion, caster);
-
-            
-
-            //call TriggerRegisterUnitEvent( gg_trg_test, gg_unit_Ewar_0001, EVENT_UNIT_SUMMON )
+            illusionAbility = GetUnitAbility(caster, illusionId);
+            ShowAbility(illusionAbility, false);
+            CastAbilityTarget(illusionAbility, caster);
 
         });
 
