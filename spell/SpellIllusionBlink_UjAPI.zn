@@ -5,7 +5,6 @@ library SpellIllusionBlink requires optional HandleHT {
     constant integer illusionId = 'CIil';
 
     /* === Реализация заклинания === */
-    hashtable ht;
     unit caster, illusionUnit;
     integer level;
     ability illusionAbility;
@@ -15,10 +14,6 @@ library SpellIllusionBlink requires optional HandleHT {
         trigger t = CreateTrigger();
         integer i;
 
-        // Используем единую хэштаблицу для хранения данных на хэндлах
-        static if (LIBRARY_HandleHT) ht = HandleHT;
-        else ht = InitHashtable();
-
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
         for (0 <= i < bj_MAX_PLAYER_SLOTS) {
             TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
@@ -26,7 +21,6 @@ library SpellIllusionBlink requires optional HandleHT {
         TriggerAddAction(t, function() {
             if (blinkId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
-            level = GetUnitAbilityLevel(caster, blinkId);
 
             // Создаём динамический триггер для того, чтоб отследить иллюзию
             trig  = CreateTrigger();
@@ -34,10 +28,12 @@ library SpellIllusionBlink requires optional HandleHT {
             TriggerAddAction(trig, function(){
                 caster = GetSummoningUnit();
                 illusionUnit = GetSummonedUnit();
+                // Позиционируем иллюзию на место кастера
                 SetUnitX(illusionUnit, GetUnitX(caster));
                 SetUnitY(illusionUnit, GetUnitY(caster));
                 SetUnitFacingEx(illusionUnit, GetUnitFacing(caster), true);
 
+                // Уничтожаем динамический триггер
                 trig = GetTriggeringTrigger();
                 TriggerClearActions(trig);
                 DestroyTrigger(trig);
@@ -45,10 +41,10 @@ library SpellIllusionBlink requires optional HandleHT {
 
             // Добавляем способность иллюзий и кастуем её
             if (GetUnitAbilityLevel(caster, illusionId) == 0) UnitAddAbility(caster, illusionId);
-            SetUnitAbilityLevel(caster, illusionId, level);
+            SetUnitAbilityLevel(caster, illusionId, GetUnitAbilityLevel(caster, blinkId));
             illusionAbility = GetUnitAbility(caster, illusionId);
-            ShowAbility(illusionAbility, false);
-            CastAbilityTarget(illusionAbility, caster);
+            ShowAbility(illusionAbility, false); // Скрываем способность создания иллюзии с панели приказов
+            CastAbilityTarget(illusionAbility, caster); // Применяем скрытую способность на кастера для создания иллюзии
 
         });
 
