@@ -31,7 +31,7 @@ library SpellDrainLife requires optional HandleHT {
 
     /* === Реализация заклинания  === */
     
-    hashtable ht; // Хэштаблица для записи по структуры на хэндл юнита
+    hashtable ht; // Хэштаблица для записи данных на хэндл юнита
     key drainKey; // Ключ для хранения структуры на юните
     location loc = Location(0, 0); // Точка для получения высоты
 

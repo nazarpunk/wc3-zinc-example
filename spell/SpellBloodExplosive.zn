@@ -1,0 +1,237 @@
+library SpellBloodExplosive {
+    /* === Настройки заклинания === */
+
+    constant integer abilityId = 'AUbe'; // Равкод способности
+    
+    constant real explosiveDelay = .9; // Задержка перед взрывом
+    constant real explosiveRadius = 182; // Радиус взрыва
+    
+    constant integer missileDummyId = 'aube'; // Равкод дамми снаряда
+    constant player missileDummyOwner = Player(PLAYER_NEUTRAL_PASSIVE); // Владелец дамми
+    constant real missileStartZ = 75; // Высота появления снаряда
+    constant real missileArc = .41; // Изгиб дуги полёта снаряда
+    constant real missileTimerPeriod = .05; // Период таймера снаряда
+    constant real missileMoveFraction = 750 * missileTimerPeriod; // Расстояние, которое снаряд пройдёт за каждый тик таймера  
+
+    // Функция, вызываемая при касте
+    function onCast(){
+        DestroyEffect(AddSpecialEffect("Effect\\SpellBloodExplosive-Cast.mdl", spellX, spellY));
+    }
+    
+    // Функция, вызываемая при взрыве
+    function onExplosive(){
+        DestroyEffect(AddSpecialEffect("Effect\\SpellBloodExplosive-Explosive.mdl", spellX, spellY));
+        DestroyEffect(AddSpecialEffect("Effect\\SpellBloodExplosive-ExplosiveBlood.mdx", spellX, spellY));
+    }
+    
+    // Проверка целей
+    function isTarget() -> boolean {
+        if (caster == target) return false;
+        if (!IsUnitEnemy(target, GetOwningPlayer(caster))) return false;
+        if (IsUnitType(target, UNIT_TYPE_UNDEAD)) return false;
+        if (IsUnitType(target, UNIT_TYPE_STRUCTURE)) return false;
+        if (IsUnitType(target, UNIT_TYPE_MECHANICAL)) return false;
+        if (IsUnitType(target, UNIT_TYPE_MAGIC_IMMUNE)) return false;
+        return true;
+    }
+
+    // Функция, вызываемая при нанесении урона
+    function onDamage(){
+        real damage = level*100;
+        UnitDamageTarget(caster, target, damage, false, true, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
+    }
+    
+    // Функция, вызываемая при убийстве
+    function onKill(){
+        DestroyEffect(AddSpecialEffect("Effect\\SpellBloodExplosive-Kill.mdx", GetUnitX(target), GetUnitY(target)));
+    }
+    
+    // Функция, вызываемая при лечении
+    function onHeal(){
+        real heal = .1*level*damage;
+        SetWidgetLife(caster, GetWidgetLife(caster) + heal);
+        DestroyEffect(AddSpecialEffectTarget("Abilities\\Spells\\Undead\\VampiricAura\\VampiricAuraTarget.mdl", caster, "origin"));
+    }
+    
+    /* === Создаёмм необходимые переменные === */
+    hashtable ht; // Хэштаблица для записи данных на хэндл юнита
+    group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
+    unit caster, target, missile;
+    integer level, tickerId;
+    timer ticker;
+    real spellX, spellY, casterX, casterY, casterZ, targetX, targetY, missileX, missileY, missileZ, distanceSummary, distanceCurrent, damage, angle;
+    location loc = Location(0,0); // Создаём точку для получения высоты
+    boolean casterAlive;
+
+    /* === Реализация заклинания  === */
+
+    // Реализуем функцию получения высоты точки ландшафта
+    function GetTerrainZ(real x, real y) -> real {
+        MoveLocation(loc, x, y);
+        return GetLocationZ(loc);
+    }
+
+    // Реализуем функцию расстояния между двумя точками
+    function Distance(real xa, real ya, real xb, real yb) -> real {
+        real dx = xb - xa;
+        real dy = yb - ya;
+        return SquareRoot(dx*dx + dy*dy);
+    }
+
+    // Реализуем функцию параболы, которая учитывает разницу высот
+    function Parabola(real zs, real ze, real h, real d, real x) -> real {
+        return (2*(zs + ze - 2*h)*(x/d - 1) + (ze - zs))*(x/d) + zs;
+    }
+
+    // Реализуем функцию позиционирования снаряда
+    function SetMissileXYZ(unit u, real x, real y, real z) {
+        SetUnitX(u, x);
+        SetUnitY(u, y);
+        SetUnitFlyHeight(u, z - GetTerrainZ(x, y), 0);
+    }
+
+    function onInit(){
+        integer i;
+        trigger t;
+
+        // Используем одну хэштаблицу для хранения данных на хэндлах
+        // При её отсутствии инициализируем новую
+        static if (LIBRARY_HandleHT) ht = HandleHT;
+        else ht = InitHashtable();
+
+        // Слушаем событие каста для всех игроков, экономя лишний вызов функции
+        t = CreateTrigger();
+        for (0 <= i < bj_MAX_PLAYER_SLOTS){
+            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        }
+        TriggerAddAction(t, function(){
+            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            caster = GetTriggerUnit();
+            level = GetUnitAbilityLevel(caster, abilityId);
+            spellX = GetSpellTargetX();
+            spellY = GetSpellTargetY();
+            onCast(); // Создаём вихрь при касте
+
+            // Создаём таймер и сохраняем данные на его хэндл
+            ticker = CreateTimer();
+            tickerId = GetHandleId(ticker);
+            SaveUnitHandle(ht, tickerId, 'cstr', caster);
+            SaveInteger(ht, tickerId, 'levl', level);
+            SaveReal(ht, tickerId, 'splX', spellX);
+            SaveReal(ht, tickerId, 'splY', spellY);
+
+            // Стартуем созданный таймер
+            TimerStart(ticker, explosiveDelay, false, function(){
+                ticker = GetExpiredTimer();
+                tickerId = GetHandleId(ticker);
+                DestroyTimer(ticker); // Освобождаем память как можно раньше.
+                
+                caster = LoadUnitHandle(ht, tickerId, 'cstr');
+                casterX = GetUnitX(caster);
+                casterY = GetUnitY(caster);
+
+                level = LoadInteger(ht, tickerId, 'levl');
+
+                spellX = LoadReal(ht, tickerId, 'splX');
+                spellY = LoadReal(ht, tickerId, 'splY');
+                
+                onExplosive(); // Создаём взрыв
+                GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
+                GroupEnumUnitsInRange(g, spellX, spellY, explosiveRadius + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
+
+                ForGroup(g, function(){
+                    target = GetEnumUnit();
+                    if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
+                    if (!IsUnitInRangeXY(target, spellX, spellY, explosiveRadius)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
+                    if (!isTarget()) return;
+                    
+                    damage = GetWidgetLife(target); // Начинаем считать урон
+
+                    // Делаем юнита взрывающимся и наносим урон
+                    SetUnitExploded(target, true);
+                    onDamage();
+                    SetUnitExploded(target, false);
+
+                    damage -= GetWidgetLife(target); // Считаем урон
+                    if (damage < 0) damage = 0; // Избегаем отрицательного урона.
+
+                    // Совершаем действия при смерти юнита.
+                    if (UnitAlive(target)) return;
+                    onKill();
+
+                    targetX = GetUnitX(target);
+                    targetY = GetUnitY(target);
+
+                    // Создаём дамми снаряд
+                    angle = Atan2(casterY - targetY, casterX - targetX) * bj_RADTODEG;
+                    missile = CreateUnit(missileDummyOwner, missileDummyId, targetX, targetY, angle);
+                    SetMissileXYZ(missile, targetX, targetY, missileStartZ);
+
+                    // Создаём таймер и записываем нужные данные
+                    ticker = CreateTimer();
+                    tickerId = GetHandleId(ticker);
+                    SaveUnitHandle(ht, tickerId, 'cstr', caster);
+                    SaveUnitHandle(ht, tickerId, 'misl', missile);
+                    SaveInteger(ht, tickerId, 'levl', level);
+                    SaveReal(ht, tickerId, 'damg', damage);
+                    SaveReal(ht, tickerId, 'defZ', GetTerrainZ(targetX, targetY) + missileStartZ);
+                    SaveReal(ht, tickerId, 'dist', Distance(casterX, casterY, targetX, targetY));
+
+                    TimerStart(ticker, missileTimerPeriod, true, function(){
+                        ticker = GetExpiredTimer();
+                        tickerId = GetHandleId(ticker);
+                        
+                        caster = LoadUnitHandle(ht, tickerId, 'cstr');
+                        casterX = GetUnitX(caster);
+                        casterY = GetUnitY(caster);
+                        casterZ = GetTerrainZ(casterX, casterY);
+                        casterAlive = UnitAlive(caster);
+
+                        missile = LoadUnitHandle(ht, tickerId, 'misl');
+                        missileX = GetUnitX(missile);
+                        missileY = GetUnitY(missile);
+
+                        distanceSummary = LoadReal(ht, tickerId, 'dist');
+                        distanceCurrent = Distance(casterX, casterY, missileX, missileY);
+
+                        // Узнаём, долетел ли снаряд
+                        if (distanceCurrent <= missileMoveFraction + 10 || !casterAlive){
+
+                            // Лечим кастера при условии неполного здоровья
+                            if (casterAlive && GetWidgetLife(caster) < GetUnitState(caster, UNIT_STATE_MAX_LIFE)){
+                                level = LoadInteger(ht, tickerId, 'levl');
+                                damage = LoadReal(ht, tickerId, 'damg');
+                                onHeal();
+                            }
+
+                            // Очищаем ненужные данные
+                            RemoveUnit(missile);
+                            PauseTimer(ticker); // Останавливаем периодические таймеры перед удалением
+                            DestroyTimer(ticker);
+                            FlushChildHashtable(ht, tickerId); // Очищаем все данные на хэндле
+                            
+                            return; // Выходим из функции
+                        }
+
+                        angle = Atan2(casterY - missileY, casterX - missileX);
+                        missileX += missileMoveFraction * Cos(angle);
+                        missileY += missileMoveFraction * Sin(angle);
+                        missileZ = LoadReal(ht, tickerId, 'defZ');
+
+                        SetMissileXYZ(missile, missileX, missileY, Parabola(
+                            missileZ, // начальная высота высота одного края дуги
+                            casterZ, // конечная высота высота другого края дуги
+                            RAbsBJ(missileZ - casterZ) + distanceSummary*.5*missileArc, // максимальная высота на середине расстояния
+                            distanceSummary, // общее расстояние до цели
+                            distanceSummary - distanceCurrent // расстояние от исходной цели до точки
+                        ));
+                        SetUnitFacing(missile, angle * bj_RADTODEG);
+
+                    });
+                });
+            });
+        });
+
+        t = null;
+    }
+}
