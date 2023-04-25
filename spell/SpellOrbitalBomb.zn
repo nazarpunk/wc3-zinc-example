@@ -1,62 +1,60 @@
 library SpellOrbitalBomb requires optional HandleHT {
-    constant integer AbilityID = 'AHob'; // Равкод способности
-    constant real StrikeDelay = 2; // Задержка перед ударом
+    /* === Настройки заклинания === */
 
-    constant integer DummyPoint = 'hobd';
-    constant player DummyOwner = Player(PLAYER_NEUTRAL_PASSIVE);
+    constant integer abilityId = 'AHob'; // Равкод способности
+    constant real strikeDelay = 2; // Задержка перед ударом
+    constant string markEffect = "Effect\\PointTarget.mdl"; // Эффект пометки взрыва
 
     // Задержка перед взрывом
-    function getExplodeDelay(unit caster, integer level) -> real {
-        return 2.0;
+    function getExplodeDelay() -> real {
+        return 2.;
     }
 
     // Период появления взрывов
-    function getStrikePeriod(unit caster, integer level) -> real {
-        return 0.25;
+    function getStrikePeriod() -> real {
+        return .25;
     }  
 
     // Количество 
-    function getStrikeCount(unit caster, integer level) -> integer {
+    function getStrikeCount() -> integer {
         return 5*level;
     }
 
     // Радиус сканирования
-    function getScanRange(unit caster, integer level) -> integer {
-        return 400;
+    function getScanRange() -> real {
+        return 400.;
     }
 
-    function getDamageRange(unit caster, integer level) -> integer {
-        return 150;
+    function getDamageRange() -> real {
+        return 150.;
     }
 
     // Проверка целей
-    function checkTarget(unit caster, unit target) -> boolean {
-        return (
-            !IsUnitType(target, UNIT_TYPE_FLYING) // Не летающий
-            &&
-            !IsUnitType(target, UNIT_TYPE_MAGIC_IMMUNE) // Восприимчив к магии
-            &&
-            IsPlayerEnemy(GetOwningPlayer(caster), GetOwningPlayer(target)) // Враг
-        );
+    function isTarget() -> boolean {
+        if (caster == target) return false;
+        if (IsUnitType(target, UNIT_TYPE_FLYING)) return false;
+        if (IsUnitType(target, UNIT_TYPE_MAGIC_IMMUNE)) return false;
+        if (!IsUnitEnemy(target, GetOwningPlayer(caster))) return false;
+        return true;
     }
 
     // Функция, вызываемая при нанесении урона
-    function onDamage(unit caster, unit target, integer level){
+    function onDamage(){
         real damage = level*50;
         UnitDamageTarget(caster, target, damage, false, true, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
     }
     
     /* === Создаёмм необходимые переменные === */
     hashtable ht; // Хэштаблица для записи данных на хэндл
+    group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
+    timer ticker;
+    unit caster, target;
+    real spellX, spellY, range, rangeRandom, markX, markY, angle, period, delay, elapsed;
+    integer level, count, i, tickerId, created, exploaded;
     
     /* === Реализация заклинания  === */
 
-    function isUnitAlive(unit target) -> boolean {
-        return GetWidgetLife(target) > 0.405;
-    }
-    
     function onInit(){
-        integer i;
         trigger t;
 
         // Используем одну хэштаблицу для хранения данных на хэндлах
@@ -68,97 +66,87 @@ library SpellOrbitalBomb requires optional HandleHT {
         for (0 <= i < bj_MAX_PLAYER_SLOTS){
             TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         }
-        TriggerAddCondition(t, Filter(function() -> boolean {
-            return GetSpellAbilityId() == AbilityID;
-        }));
         TriggerAddAction(t, function(){
-            unit caster = GetTriggerUnit();
-            integer level = GetUnitAbilityLevel(caster, AbilityID);
-            real r, range = I2R(getScanRange(caster, level));
-            real xt = GetSpellTargetX();
-            real yt = GetSpellTargetY();
-            real x, y, angle;
-            integer count = getStrikeCount(caster, level);
-            timer t = CreateTimer();
-            integer i, pk = GetHandleId(t);
-            real period = getStrikePeriod(caster, level);
-            real delay = getExplodeDelay(caster, level);
-            
-            SaveUnitHandle(HT, pk, 0, caster);
-            SaveReal(HT, pk, 0, 0); // elapsed
-            SaveReal(HT, pk, 1, period); // period
-            SaveReal(HT, pk, 2, delay); // delay
-            SaveReal(HT, pk, 3, getDamageRange(caster, level)); // damage range
-            SaveInteger(HT, pk, 0, level);
-            SaveInteger(HT, pk, 1, count);
-            SaveInteger(HT, pk, 2, 0); // created
-            SaveInteger(HT, pk, 3, 0); // exploaded
+            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            caster = GetTriggerUnit();
+            level = GetUnitAbilityLevel(caster, abilityId);
+            spellX = GetSpellTargetX();
+            spellY = GetSpellTargetY();
+            range = getScanRange();
+            count = getStrikeCount();
+            period = getStrikePeriod();
+            delay = getExplodeDelay();
+
+            // Создаём таймер и сохраняем на него нужные данные
+            ticker = CreateTimer();
+            tickerId = GetHandleId(ticker);
+            SaveUnitHandle(ht, tickerId, 'cstr', caster);
+            SaveReal(ht, tickerId, 0, 0); // elapsed
+            SaveReal(ht, tickerId, 1, period); // period
+            SaveReal(ht, tickerId, 2, delay); // delay
+            SaveReal(ht, tickerId, 3, getDamageRange()); // damage range
+            SaveInteger(ht, tickerId, 0, level);
+            SaveInteger(ht, tickerId, 1, count);
+            SaveInteger(ht, tickerId, 2, 0); // created
+            SaveInteger(ht, tickerId, 3, 0); // exploaded
             for(0 <= i < count){
-                angle = GetRandomReal(0, 360);
-                r = GetRandomReal(0, range);
-                x = xt + r * Cos(angle * bj_DEGTORAD);
-                y = yt + r * Sin(angle * bj_DEGTORAD);
-                SaveReal(HT, pk, 10 + i, x);
-                SaveReal(HT, pk, 10 + i + count, y);                
+                angle = GetRandomReal(0, 2*bj_PI);
+                rangeRandom = SquareRoot(GetRandomReal(0, range) * range); // Используем корень для равномерного распределения
+                markX = spellX + rangeRandom * Cos(angle);
+                markY = spellY + rangeRandom * Sin(angle);
+                SaveReal(ht, tickerId, 10 + i, markX);
+                SaveReal(ht, tickerId, 10 + i + count, markY);
             }
-            
-            TimerStart(t, period, true, function(){
-                timer t = GetExpiredTimer();
-                integer pk = GetHandleId(t);
-                unit caster = LoadUnitHandle(HT, pk, 0);
-                integer level = LoadInteger(HT, pk, 0);
-                integer count = LoadInteger(HT, pk, 1);
-                integer created = LoadInteger(HT, pk, 2); // created
-                integer exploaded = LoadInteger(HT, pk, 3); // exploaded
-                real elapsed = LoadReal(HT, pk, 0);
-                real period = LoadReal(HT, pk, 1);
-                real delay = LoadReal(HT, pk, 2);
-                real x, y;
-                group g = CreateGroup();
-                unit u;
+
+            /*
+            TimerStart(ticker, period, true, function(){
+                ticker = GetExpiredTimer();
+                tickerId = GetHandleId(ticker);
+                caster = LoadUnitHandle(ht, tickerId, 'cstr');
+                level = LoadInteger(ht, tickerId, 'levl');
+                count = LoadInteger(ht, tickerId, 1);
+                created = LoadInteger(ht, tickerId, 2); // created
+                exploaded = LoadInteger(ht, tickerId, 3); // exploaded
+                elapsed = LoadReal(ht, tickerId, 0);
+                period = LoadReal(ht, tickerId, 1);
+                delay = LoadReal(ht, tickerId, 2);
                 
-                SaveReal(HT, pk, 0, elapsed + period);
-                
+                SaveReal(ht, tickerId, 0, elapsed + period);
+
+                markX = LoadReal(ht, tickerId, 10 + created);
+                markY = LoadReal(ht, tickerId, 10 + created + count);
+
                 if (created < count){
-                    x = LoadReal(HT, pk, 10 + created);
-                    y = LoadReal(HT, pk, 10 + created + count);
-                    SaveUnitHandle(HT, pk, 10 + created, CreateUnit(DummyOwner, DummyPoint, x, y, GetRandomReal(0, 360)));
-                    SaveInteger(HT, pk, 2, created + 1);
+                    SaveUnitHandle(ht, tickerId, 10 + created, CreateUnit(markOwner, markId, markX, markY, GetRandomReal(0, 360))); // Ид даммика для прицела
+                    SaveInteger(ht, tickerId, 2, created + 1);
                 }
+
+                return;
                 
                 if (elapsed > delay && exploaded < count){
-                    x = LoadReal(HT, pk, 10 + exploaded);
-                    y = LoadReal(HT, pk, 10 + exploaded + count);
-                    SaveInteger(HT, pk, 3, exploaded + 1);
-                    RemoveUnit(LoadUnitHandle(HT, pk, 10 + exploaded));
-                    DestroyEffect(AddSpecialEffect("Effect\\ArtilleryStrike.mdx", x, y));
-                    GroupEnumUnitsInRange(g, x, y, LoadReal(HT, pk, 3), Filter(function() -> boolean {
-                        return isUnitAlive(GetFilterUnit());
-                    }));
-                    while(true){
-                        u = FirstOfGroup(g);
-                        if (u == null) { break; }
-                        if (checkTarget(caster, u)){
-                            onDamage(caster, u, level);
-                        }
-                        GroupRemoveUnit(g, u);
-                    }
+                    SaveInteger(ht, tickerId, 3, exploaded + 1);
+                    RemoveUnit(LoadUnitHandle(ht, tickerId, 10 + exploaded));
+
+                    range = LoadReal(ht, tickerId, 3);
+
+                    GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
+                    GroupEnumUnitsInRange(g, markX, markY, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
+                    ForGroup(g, function(){
+                        target = GetEnumUnit();
+                        if (!UnitAlive(target)) return;
+                        if (!IsUnitInRangeXY(target, markX, markY, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
+                        if (!isTarget()) return;
+                        onDamage();
+                    });
                 }
                 
                 if (created >= count && exploaded >= count){
-                    PauseTimer(t);
-                    DestroyTimer(t);
-                    FlushChildHashtable(HT, pk);
+                    PauseTimer(ticker); // Останавливаем периодические таймеры перед удалением
+                    DestroyTimer(ticker);
+                    FlushChildHashtable(ht, tickerId);
                 }
-                
-                DestroyGroup(g); g = null;
-                u = null;
-                caster = null;
-                t = null;
             });
-            
-            t = null;
-            caster = null;
+            */
         });
 
         t = null;
