@@ -1,0 +1,165 @@
+library CustomChatEvent {
+
+    CustomChatEvent Struct[];
+    integer StructI = -1;
+    string Prefix = "-";
+    string Delimiter = " ";
+    
+    function trim(string str) -> string {
+        integer i, len = StringLength(str);
+        integer s= 0, e = len;
+        string c;
+        
+        for(0 <= i < len){
+            c = SubString(str, i, i+1);
+            if (c == " "){ s = s+1;}
+            else { break; }
+        }
+        for (len > i >= 0){
+            c = SubString(str, i, i+1);
+            if (c == " "){ e = e-1; }
+            else { break; }
+        }
+        return SubString(str, s, e);
+    }
+    
+    public {
+        struct CCE {
+            static player chatPlayer;
+            static string chatCommand = "";
+            static string chatString = "";
+            static string chatParam[64];
+            static integer chatParamCount = 0;
+        }
+    
+        struct CustomChatEvent {
+            string CommandString[1024];
+            integer CommandStringI = -1;
+            conditionfunc CommandFunc;
+            
+            method addCommandString(string s){
+                CommandStringI = CommandStringI + 1;
+                CommandString[CommandStringI] = s;
+            }
+                    
+            static method create(string s) -> CustomChatEvent {
+                CustomChatEvent this = CustomChatEvent.allocate();
+                this.addCommandString(s);
+                
+                StructI = StructI + 1;
+                Struct[StructI] = this;
+                
+                return this;
+            }
+            
+            method getInteger() -> CustomChatEvent {
+                return this;
+            }
+            
+            method addSynonym(string s) -> CustomChatEvent {
+                this.addCommandString(s);
+                return this;
+            }
+            
+            method onSuccess(code func){
+                this.CommandFunc = Condition(func);
+            }
+            
+            method check(player p, string command, string param) {
+                boolean isFind = false;
+                integer i, length = StringLength(param);
+                trigger t;
+                string str, char;
+                
+                for (0 <= i <= this.CommandStringI){
+                    if (this.CommandString[i] == command){
+                        isFind = true;
+                    }
+                }
+                if (isFind){
+                    CCE.chatPlayer = p;
+                    CCE.chatCommand = command;
+                    CCE.chatString = param;
+                    CCE.chatParamCount = 0;
+                    
+                    str = "";
+                    for(0 <= i <= length){
+                        if (i == length){ char = Delimiter; }
+                        else { char = SubString(param, i, i+1); }
+                        if (char == Delimiter){
+                            if (str != ""){
+                                CCE.chatParam[CCE.chatParamCount] = str;
+                                CCE.chatParamCount = CCE.chatParamCount + 1;
+                            }
+                            str = "";
+                        } else {
+                            str = str + char;
+                        }
+                    }
+                    
+                    t = CreateTrigger();
+                    TriggerAddCondition(t, this.CommandFunc);
+                    TriggerEvaluate(t);
+                    TriggerClearConditions(t);
+                    DestroyTrigger(t);
+                }
+                
+                t = null;
+            }
+        }
+    }
+    
+    function onInit(){
+        integer i;
+        trigger t = CreateTrigger();
+        
+        for (0 <= i < bj_MAX_PLAYER_SLOTS){
+            if (
+                GetPlayerController(Player(i)) == MAP_CONTROL_USER
+                &&
+                GetPlayerSlotState(Player(i)) == PLAYER_SLOT_STATE_PLAYING 
+            ) {
+                TriggerRegisterPlayerChatEvent(t, Player(i), Prefix, false );
+            }
+        }
+        
+        TriggerAddAction(t, function (){
+            string input = GetEventPlayerChatString();
+            integer i, k, length = StringLength(input);
+            string char, command = "", param = "";
+            boolean isCommandTyped = false;
+            
+            if (SubString(input, 0, 1) != Prefix) { return; }
+            
+            for(0 <= i <= length){
+                if (i == length){ char = Prefix; }
+                else { char = SubString(input, i, i+1); }
+                
+                if (char == Prefix){
+                    if (command != ""){
+                        for(0 <= k <= StructI){
+                            Struct[k].check(GetTriggerPlayer(), command, trim(param));
+                        }
+                    }
+                    isCommandTyped = true;
+                    command = "";
+                    param = "";
+                }
+                if (char == Delimiter){
+                    isCommandTyped = false;
+                }
+                
+                if (isCommandTyped) {
+                    if (char != Prefix){
+                        command = command + char;
+                    }
+                } else {
+                    param = param + char;
+                }
+                
+            }
+        });
+    
+        t = null;
+    }
+}

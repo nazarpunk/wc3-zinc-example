@@ -41,9 +41,7 @@ library SpellSleepAOE {
         dummy = CreateUnit(dummyOwner, dummyId, 0, 0, 0);
         UnitAddAbility(dummy, abilityDummy);
 
-        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
-            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
-        }
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function(){
             if (abilityHero != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();

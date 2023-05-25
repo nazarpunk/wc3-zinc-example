@@ -17,9 +17,7 @@ library SpellHolyBoltAOE {
         trigger t = CreateTrigger();
 
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
-        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
-            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
-        }
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function() {
             if (abilityIconId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
@@ -46,7 +44,7 @@ library SpellHolyBoltAOE {
             for(0 <= i < count){
                 target = GroupGetUnitByIndex(g, i);
                 // Проверяем живых юнитов в зоне действия
-                if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range)) {
+                if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range) && IsAbilityTargetAllowed(abilityIcon, target)) {
                     CastAbilityTarget(abilityCast, target);
                 }
             }

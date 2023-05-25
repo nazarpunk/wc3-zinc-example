@@ -4,6 +4,9 @@ library SpellOrbitalBomb requires optional HandleHT {
     constant integer abilityId = 'AHob'; // Равкод способности
     constant real strikeDelay = 2; // Задержка перед ударом
     constant string markEffect = "Effect\\PointTarget.mdl"; // Эффект пометки взрыва
+    unit caster, target;
+    real spellX, spellY, range, rangeRandom, markX, markY, angle, period, delay, elapsed;
+    integer level, count, i, tickerId, created, exploaded;
 
     // Задержка перед взрывом
     function getExplodeDelay() -> real {
@@ -17,7 +20,7 @@ library SpellOrbitalBomb requires optional HandleHT {
 
     // Количество 
     function getStrikeCount() -> integer {
-        return 5*level;
+        return 5 * level;
     }
 
     // Радиус сканирования
@@ -45,13 +48,11 @@ library SpellOrbitalBomb requires optional HandleHT {
     }
     
     /* === Создаёмм необходимые переменные === */
+    
     hashtable ht; // Хэштаблица для записи данных на хэндл
     group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
     timer ticker;
-    unit caster, target;
-    real spellX, spellY, range, rangeRandom, markX, markY, angle, period, delay, elapsed;
-    integer level, count, i, tickerId, created, exploaded;
-    
+
     /* === Реализация заклинания  === */
 
     function onInit(){

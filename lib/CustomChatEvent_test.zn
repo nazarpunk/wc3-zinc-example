@@ -1,0 +1,48 @@
+//! zinc
+library MyTimerLib {
+    string msg = "-run";
+    integer i, action[];
+    timer ticker[];
+    boolean running[];
+    hashtable ht = InitHashtable();
+
+    function onInit() {
+        trigger t = CreateTrigger();
+
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
+            if ( GetPlayerController(Player(i)) == MAP_CONTROL_USER && GetPlayerSlotState(Player(i)) == PLAYER_SLOT_STATE_PLAYING) {
+                TriggerRegisterPlayerChatEvent(t, Player(i), msg, false);
+                action[i] = - 1;
+                running[i] = false;
+                ticker[i] = CreateTimer();
+                SaveInteger(ht, GetHandleId(ticker[i]), 0, i);
+            }
+        }
+
+        TriggerAddAction(t, function() {
+            i = GetPlayerId(GetTriggerPlayer());
+
+            if (running[i]) {
+                PauseTimer(ticker[i]);
+                action[i] = - 1;
+                running[i] = false;
+                BJDebugMsg("Player: " + I2S(i) + ", stop");
+                return;
+            }
+            running[i] = true;
+
+            TimerStart(ticker[i], .3, true, function() {
+                i = LoadInteger(ht, GetHandleId(GetExpiredTimer()), 0);
+
+                action[i] += 1;
+
+                BJDebugMsg("Player: " + I2S(i) + ", action: "  + I2S(action[i]));
+
+                if (action[i] == 2) action[i] = - 1;
+            });
+        });
+
+        t = null;
+    }
+}
+//! endzinc
