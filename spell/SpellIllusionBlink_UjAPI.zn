@@ -15,9 +15,7 @@ library SpellIllusionBlink requires optional HandleHT {
         integer i;
 
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
-        for (0 <= i < bj_MAX_PLAYER_SLOTS) {
-            TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
-        }
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function() {
             if (blinkId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
