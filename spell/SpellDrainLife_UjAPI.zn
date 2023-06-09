@@ -7,18 +7,12 @@ library SpellDrainLife requires optional HandleHT {
 
     /* === Реализация заклинания  === */
 
-    hashtable ht; // Хэштаблица для записи по структуры на хэндл юнита
     unit caster, target;
     ability abilityCast;
 
     function onInit(){
         trigger t = CreateTrigger();
         integer i;
-
-        // Используем одну хэштаблицу для хранения данных на хэндлах
-        // При её отсутствии инициализируем новую
-        static if (LIBRARY_HandleHT) ht = HandleHT;
-        else ht = InitHashtable();
 
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
         for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);

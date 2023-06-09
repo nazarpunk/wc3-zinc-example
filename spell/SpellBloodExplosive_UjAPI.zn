@@ -91,9 +91,9 @@ library SpellBloodExplosive requires optional HandleHT {
     }
 
     function onInit(){
-        integer i;
         trigger t;
-
+        integer i;
+        
         // Используем одну хэштаблицу для хранения данных на хэндлах
         // При её отсутствии инициализируем новую
         static if (LIBRARY_HandleHT) ht = HandleHT;
