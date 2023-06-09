@@ -9,8 +9,8 @@ library SpellEntanglingRootsAOE {
 
     /* == Настройки заклинания == */
 
-    constant integer abilityHero = 'SUsl'; // Способность для героя.
-    constant integer abilityDummy = 'CUsl'; // Способность для дамми. В ней производится настройка всех параметров
+    constant integer abilityHero = 'SEer'; // Способность для героя.
+    constant integer abilityDummy = 'CEer'; // Способность для дамми. В ней производится настройка всех параметров
     constant integer abilityDummyOrder = 852171/*entanglingroots*/; // Id приказа для дамми способности
     constant integer dummyId = 'dumy'; // Равкод дамми кастера
 
@@ -37,7 +37,7 @@ library SpellEntanglingRootsAOE {
         trigger t = CreateTrigger();
         for (0 <= playerId < bj_MAX_PLAYER_SLOTS) {
             // Создаём даммика для каждого игрока и выдаём ему абилку
-            dummys[playerId] = CreateUnit(Player(i), dummyId, 0, 0, 0);
+            dummys[playerId] = CreateUnit(Player(playerId), dummyId, 0, 0, 0);
             UnitAddAbility(dummys[playerId], abilityDummy);
             // Регистрируем событие для каждого игрока
             TriggerRegisterPlayerUnitEvent(t, Player(playerId), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
@@ -49,7 +49,7 @@ library SpellEntanglingRootsAOE {
             x = GetSpellTargetX();
             y = GetSpellTargetY();
             range = getRange();
-            playerId = GetPlayerId(GetOwningPlayer(caster))
+            playerId = GetPlayerId(GetOwningPlayer(caster));
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
             GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
