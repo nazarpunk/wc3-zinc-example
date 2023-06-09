@@ -45,7 +45,7 @@ library SpellHolyBoltAOE {
                 target = GroupGetUnitByIndex(g, i);
                 // Проверяем юнитов в зоне действия
                 if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range) && IsAbilityTargetAllowed(abilityCast, target)) {
-                    CastAbilityTarget(abilityCast, target);
+                    //CastAbilityTarget(abilityCast, target);
                 }
             }
         });
