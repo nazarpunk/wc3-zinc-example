@@ -43,8 +43,8 @@ library SpellHolyBoltAOE {
             // Кастуем абилку на каждого юнита в группе
             for(0 <= i < count){
                 target = GroupGetUnitByIndex(g, i);
-                // Проверяем живых юнитов в зоне действия
-                if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range) && IsAbilityTargetAllowed(abilityIcon, target)) {
+                // Проверяем юнитов в зоне действия
+                if (UnitAlive(target) && IsUnitInRangeXY(target, x, y, range) && IsAbilityTargetAllowed(abilityCast, target)) {
                     CastAbilityTarget(abilityCast, target);
                 }
             }
