@@ -54,6 +54,7 @@ library SpellBloodExplosive requires optional HandleHT {
     }
     
     /* === Создаёмм необходимые переменные === */
+
     hashtable ht; // Хэштаблица для записи данных на хэндл
     group g = CreateGroup(); // Используем одну группу для всех перебров, что не заморачиваться с удалением
     unit caster, target, missile;
@@ -92,7 +93,7 @@ library SpellBloodExplosive requires optional HandleHT {
 
     function onInit(){
         integer i;
-        trigger t;
+        trigger t = CreateTrigger();
 
         // Используем одну хэштаблицу для хранения данных на хэндлах
         // При её отсутствии инициализируем новую
@@ -100,7 +101,6 @@ library SpellBloodExplosive requires optional HandleHT {
         else ht = InitHashtable();
 
         // Слушаем событие каста для всех игроков, экономя лишний вызов функции
-        t = CreateTrigger();
         for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function(){
             if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
@@ -134,6 +134,7 @@ library SpellBloodExplosive requires optional HandleHT {
                 spellY = LoadReal(ht, tickerId, 'splY');
                 
                 onExplosive(); // Создаём взрыв
+                
                 GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
                 GroupEnumUnitsInRange(g, spellX, spellY, explosiveRadius + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
 
