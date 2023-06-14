@@ -123,7 +123,7 @@ library SpellBloodExplosive requires optional HandleHT {
                 ticker = GetExpiredTimer();
                 tickerId = GetHandleId(ticker);
                 DestroyTimer(ticker); // Освобождаем память как можно раньше.
-                
+
                 caster = LoadUnitHandle(ht, tickerId, 'cstr');
                 casterX = GetUnitX(caster);
                 casterY = GetUnitY(caster);

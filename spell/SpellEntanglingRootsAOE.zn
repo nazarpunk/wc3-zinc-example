@@ -3,7 +3,7 @@ library SpellEntanglingRootsAOE {
 
     group g = CreateGroup();
     unit caster, target, dummys[];
-    real x, y, range, data[];
+    real spellX, spellY, range, data[];
     boolean isEnemy;
     integer level, playerId;
 
@@ -46,20 +46,20 @@ library SpellEntanglingRootsAOE {
             if (abilityHero != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
             caster = GetTriggerUnit();
             level = GetUnitAbilityLevel(caster, abilityHero);
-            x = GetSpellTargetX();
-            y = GetSpellTargetY();
+            spellX = GetSpellTargetX();
+            spellY = GetSpellTargetY();
             range = getRange();
             playerId = GetPlayerId(GetOwningPlayer(caster));
 
             GroupClear(g); // Не забываем очистить группу, чтоб не зацепить прошлых юнитов
-            GroupEnumUnitsInRange(g, x, y, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
+            GroupEnumUnitsInRange(g, spellX, spellY, range + 200, null); // Делаем радиус немного больше, ибо функция не учитывает радиус юнита
 
             SetUnitAbilityLevel(dummys[playerId], abilityDummy, level);
 
             ForGroup(g, function() {
                 target = GetEnumUnit();
                 if (!UnitAlive(target)) return; // Отсеиваем мёртвых юнитов
-                if (!IsUnitInRangeXY(target, x, y, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
+                if (!IsUnitInRangeXY(target, spellX, spellY, range)) return; // Отсеиваем юнитов по расстоянию функцией, которая учитывает радиус юнита
                 if (!isTarget()) return; // Отсеиваем цели
                 SetUnitX(dummys[playerId], GetUnitX(target));
                 SetUnitY(dummys[playerId], GetUnitY(target));
