@@ -1,4 +1,2 @@
-.idea/modules.xml
-.idea/vcs.xml
-.idea/wc3-zinc-example.iml
-.idea/inspectionProfiles/Project_Default.xml
+/.idea/
+**/.DS_Store

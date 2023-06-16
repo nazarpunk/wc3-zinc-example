@@ -1,0 +1,25 @@
+library MyTestLib {
+    function onInit() {
+        trigger t = CreateTrigger();
+        integer i;
+
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        TriggerAddAction(t, function() {
+            integer i;
+
+            BJDebugMsg("0 <= i <= 10");
+            for (0 <= i <= 10){
+                BJDebugMsg(I2S(i));
+            }
+
+            BJDebugMsg("10 >= i >= 0");
+            for (10 >= i >= 0){
+                BJDebugMsg(I2S(i));
+            }
+            
+
+        });
+        
+        t = null;
+    }
+ }
