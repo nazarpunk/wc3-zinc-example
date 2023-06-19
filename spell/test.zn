@@ -7,34 +7,31 @@ library MyTestLib {
         DestroyEffect(AddSpecialEffect("Objects\\Spawnmodels\\Naga\\NagaDeath\\NagaDeath.mdl", x, y));
     }
 
-    function onInit() {
+    function onInit() {        
         trigger t = CreateTrigger();
-
-dx = xb - xa;
-dy = yb - ya;
-
-distance = SquareRoot(dx*dx + dy*dy);
-angle  = Atan2(dy, dx);
-        
-        xb =  xa + distance * Cos(angle);
-        yb =  ya + distance * Sin(angle);
-
-
         for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function() {
-            if (GetSpellAbilityId() != 'XXXX') return;
+            real dx, dy, distance, angle, da;
+            integer count = 50;
+            //if (GetSpellAbilityId() != 'XXXX') return;
             caster = GetTriggerUnit();
             casterX = GetUnitX(caster);
             casterY = GetUnitY(caster);
-            boom(casterX, casterY);
-
             spellX = GetSpellTargetX();
             spellY = GetSpellTargetY();
 
-            for(0 <= i < 3){
+            dx = spellX - casterX;
+            dy = spellY - casterY;
+    
+            distance = SquareRoot(dx*dx + dy*dy);
+            angle  = Atan2(dy, dx);
+            da = 2 * bj_PI / I2R(count);
+            
+            for(0 <= i < count){
                 boom(spellX, spellY);
-                spellX += 200;
-                spellY -= 200;
+                angle += da;
+                spellX = casterX + distance * Cos(angle);
+                spellY = casterY + distance * Sin(angle);
             }
         });
 
