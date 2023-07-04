@@ -55,15 +55,15 @@ library SpellDrainLife requires optional HandleHT {
         return dx*dx + dy*dy + dz*dz;
     }
 
-    function destroy(timer t){
-        tickerId = GetHandleId(t);
-        PauseTimer(t);
-        DestroyTimer(t);
+    function destroy(){
+        tickerId = GetHandleId(ticker);
+        PauseTimer(ticker);
+        DestroyTimer(ticker);
         RemoveSavedInteger(ht, casterId, drainKey);
         DestroyLightning(LoadLightningHandle(ht, tickerId, 'ligt'));
         DestroyEffect(LoadEffectHandle(ht, tickerId, 'effC'));
         DestroyEffect(LoadEffectHandle(ht, tickerId, 'effT'));
-        FlushChildHashtable(ht, t);
+        FlushChildHashtable(ht, tickerId);
     }
 
     function onInit(){
@@ -84,12 +84,12 @@ library SpellDrainLife requires optional HandleHT {
             target = GetSpellTargetUnit();
 
             // Удаляем предыдущий таймер, если он существует
-            if (HaveSavedInteger(ht, casterId, drainKey)) destroy(LoadTimerHandle(ht, casterId, drainKey));
+            ticker = LoadTimerHandle(ht, casterId, drainKey);
+            if (ticker != null) destroy();
 
             // Создаём таймер и сохраняем на него нужные данные
             ticker = CreateTimer();
             tickerId = GetHandleId(ticker);
-
             SaveTimerHandle(ht, casterId, drainKey, ticker); // Сохраняем таймер на кастера для уничтожения предыдущей молнии
 
             SaveUnitHandle(ht, tickerId, 'cast', caster);
@@ -98,7 +98,7 @@ library SpellDrainLife requires optional HandleHT {
             level = GetUnitAbilityLevel(caster, abilityId);
             SaveInteger(ht, tickerId, 'levl', level);
             
-            distanceMax = getMaxDistance();
+            distanceMax = getDistanceMax();
             SaveReal(ht, tickerId, 'dist', distanceMax * distanceMax); // Используем квадрат расстояния, чтоб не считать корень
 
             SaveReal(ht, tickerId, 'expr', getExpireTime());
@@ -129,7 +129,6 @@ library SpellDrainLife requires optional HandleHT {
                 caster = LoadUnitHandle(ht, tickerId, 'cast');
                 casterId = GetHandleId(caster);
                 target = LoadUnitHandle(ht, tickerId, 'targ');
-                targetId = GetHandleId(target);
 
                 level = LoadInteger(ht, tickerId, 'levl');
                 
@@ -162,7 +161,7 @@ library SpellDrainLife requires optional HandleHT {
                     time >= LoadReal(ht, tickerId, 'expr') ||
                     Distance(xc, yc, zc, xt, yt, zt) >= LoadReal(ht, tickerId, 'dist') ||
                     GetUnitCurrentOrder(caster) == 851973/*stunned*/
-                ) destroy(ticker);
+                ) destroy();
             });
         });
 
