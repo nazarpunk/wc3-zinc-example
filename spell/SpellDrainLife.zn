@@ -12,28 +12,34 @@ library SpellDrainLife requires optional HandleHT {
     constant string targetEffectPath = "Abilities\\Spells\\Other\\Drain\\DrainTarget.mdl";
     constant string targetEffectAttach = "chest";
 
+    hashtable ht; // Хэштаблица для записи данных на хэндл юнита
+    key drainKey; // Ключ для хранения структуры на юните
+    location loc = Location(0, 0); // Точка для получения высоты
+
+    unit caster, target;
+    timer ticker;
+    integer level, casterId, tickerId;
+    real distanceMax;
+
     // Время действия
-    function getExpireTime(unit caster, integer level) -> real {
+    function getExpireTime() -> real {
         return I2R(5+level);
     }
     
     // Максимальная дальность
-    function getMaxDistance(unit caster, integer level) -> real {
+    function getDistanceMax() -> real {
         return I2R(1000 + 200*level);
     }
     
     // Функция, вызываемая при нанесении урона
-    function onDamage(unit caster, unit target, integer level) {
+    function onDamage() {
         real damage = 20 + level*20; // 40/60/80
         UnitDamageTarget(caster, target, damage, false, true, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
+        
         SetWidgetLife(caster, GetWidgetLife(caster) + damage);
     }
 
     /* === Реализация заклинания  === */
-    
-    hashtable ht; // Хэштаблица для записи данных на хэндл юнита
-    key drainKey; // Ключ для хранения структуры на юните
-    location loc = Location(0, 0); // Точка для получения высоты
 
     // Реализуем свою функцию получения высоты юнита, чтоб не тянуть зависимости
     function GetUnitZ(unit target) -> real {
@@ -49,107 +55,15 @@ library SpellDrainLife requires optional HandleHT {
         return dx*dx + dy*dy + dz*dz;
     }
 
-    // Создаём структуру, которая собственно и реализует всё заклинание
-    struct drain {
-        unit caster, target;
-        real period = 0, time = 0, expire, maxDist;
-        integer level;
-        lightning lighting;
-        timer tmr;
-        effect effectCaster, effectTarget;
-
-        // Реализуем свой метод удаления данных структуры
-        method destroy(){
-            RemoveSavedInteger(ht, GetHandleId(caster), drainKey);
-            PauseTimer(tmr); DestroyTimer(tmr); tmr = null;
-            DestroyLightning(lighting); lighting = null;
-            DestroyEffect(effectCaster); effectCaster = null;
-            DestroyEffect(effectTarget); effectTarget = null;
-            caster = null;
-            target = null;
-            deallocate();
-        }
-
-        // Реализуем метод, который будет вызван на каждый тик таймера
-        static method callback(){
-            timer t = GetExpiredTimer();
-            integer timerId = GetHandleId(t);
-            real xc, yc, zc, xt, yt, zt;
-            drain this = LoadInteger(ht, timerId, 0); // Получаем структуру из таймера
-            t = null; // Освобождаем память как можно скорее
-            
-            // Считаем количество времени, прошедшего с момента каста для нанесения урона
-            period += timerPeriod;
-            if (period >= damagePeriod){
-                period = 0;
-                onDamage(caster, target, level);
-            }
-            
-            // Двигаем молнию за целями
-            xc = GetUnitX(caster);
-            yc = GetUnitY(caster);
-            zc = GetUnitZ(caster) + lightingZ;
-            xt = GetUnitX(target);
-            yt = GetUnitY(target);
-            zt = GetUnitZ(target) + lightingZ;
-            
-            MoveLightningEx(lighting, true, xc, yc, zc, xt, yt, zt);
-            
-            time += timerPeriod;
-
-            // При не соблюдении одного из условий прекращаем действие заклинаия
-            if (
-                !UnitAlive(caster) ||
-                !UnitAlive(target) ||
-                time >= expire ||
-                Distance(xc, yc, zc, xt, yt, zt) >= maxDist ||
-                GetUnitCurrentOrder(caster) == 851973/*stunned*/
-            ) {
-                FlushChildHashtable(ht, timerId); // Стираем все данные с хэндла таймера
-                destroy(); // Уничтожаем экземпляр структуры
-            }
-        }
-    
-        // Реализуем свой метод создания структуры
-        static method create(unit caster, unit target) -> thistype {
-            thistype this;
-            integer casterId = GetHandleId(caster);
-
-            // Удаляем предыдущую структуру, если она существует
-            if (HaveSavedInteger(ht, casterId, drainKey)) {
-                this = LoadInteger(ht, casterId, drainKey);
-                destroy();
-            }
-
-            this = thistype.allocate(); // Создаём новый экземпляр структуры
-
-            // Устанавливаем стартовые значения свойств
-            this.caster = caster;
-            this.target = target;
-            level = GetUnitAbilityLevel(caster, abilityId);
-            maxDist = getMaxDistance(caster, level);
-            maxDist *= maxDist; // Используем квадрат расстояния, чтоб не считать корень
-            expire = getExpireTime(caster, level);
-            lighting = AddLightningEx(
-                lightingType,
-                true,
-                GetUnitX(caster),
-                GetUnitY(caster),
-                GetUnitZ(caster) + lightingZ,
-                GetUnitX(target),
-                GetUnitY(target),
-                GetUnitZ(target) + lightingZ
-            );
-            effectCaster = AddSpecialEffectTarget(casterEffectPath, caster, casterEffectAttach);
-            effectTarget = AddSpecialEffectTarget(targetEffectPath, target, targetEffectAttach);
-            
-            // Создаём таймер
-            tmr = CreateTimer();
-            SaveInteger(ht, casterId, drainKey, this); // Сохраняем структуру на юнита
-            SaveInteger(ht, GetHandleId(tmr), 0, this); // Сохраняем стурктуру на таймер
-            TimerStart(tmr, timerPeriod, true, function drain.callback); // Запускаем таймер и передаём в него callback
-            return this;
-        }
+    function destroy(timer t){
+        tickerId = GetHandleId(t);
+        PauseTimer(t);
+        DestroyTimer(t);
+        RemoveSavedInteger(ht, casterId, drainKey);
+        DestroyLightning(LoadLightningHandle(ht, tickerId, 'ligt'));
+        DestroyEffect(LoadEffectHandle(ht, tickerId, 'effC'));
+        DestroyEffect(LoadEffectHandle(ht, tickerId, 'effT'));
+        FlushChildHashtable(ht, t);
     }
 
     function onInit(){
@@ -165,7 +79,91 @@ library SpellDrainLife requires optional HandleHT {
         for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
         TriggerAddAction(t, function(){
             if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
-            drain.create(GetTriggerUnit(), GetSpellTargetUnit()); // Создаём новый экземпляр структуры
+            caster = GetTriggerUnit();
+            casterId = GetHandleId(caster);
+            target = GetSpellTargetUnit();
+
+            // Удаляем предыдущий таймер, если он существует
+            if (HaveSavedInteger(ht, casterId, drainKey)) destroy(LoadTimerHandle(ht, casterId, drainKey));
+
+            // Создаём таймер и сохраняем на него нужные данные
+            ticker = CreateTimer();
+            tickerId = GetHandleId(ticker);
+
+            SaveTimerHandle(ht, casterId, drainKey, ticker); // Сохраняем таймер на кастера для уничтожения предыдущей молнии
+
+            SaveUnitHandle(ht, tickerId, 'cast', caster);
+            SaveUnitHandle(ht, tickerId, 'targ', target);
+
+            level = GetUnitAbilityLevel(caster, abilityId);
+            SaveInteger(ht, tickerId, 'levl', level);
+            
+            distanceMax = getMaxDistance();
+            SaveReal(ht, tickerId, 'dist', distanceMax * distanceMax); // Используем квадрат расстояния, чтоб не считать корень
+
+            SaveReal(ht, tickerId, 'expr', getExpireTime());
+            SaveReal(ht, tickerId, 'perd', 0);
+            SaveReal(ht, tickerId, 'time', 0);
+
+            SaveLightningHandle(ht, tickerId, 'ligt', AddLightningEx(
+                lightingType,
+                true,
+                GetUnitX(caster),
+                GetUnitY(caster),
+                GetUnitZ(caster) + lightingZ,
+                GetUnitX(target),
+                GetUnitY(target),
+                GetUnitZ(target) + lightingZ
+            ));
+
+            SaveEffectHandle(ht, tickerId, 'effC', AddSpecialEffectTarget(casterEffectPath, caster, casterEffectAttach));
+            SaveEffectHandle(ht, tickerId, 'effT', AddSpecialEffectTarget(targetEffectPath, target, targetEffectAttach));
+
+
+            TimerStart(ticker, timerPeriod, true, function() {
+                real xc, yc, zc, xt, yt, zt, time;
+
+                ticker = GetExpiredTimer();
+                tickerId = GetHandleId(ticker);
+
+                caster = LoadUnitHandle(ht, tickerId, 'cast');
+                casterId = GetHandleId(caster);
+                target = LoadUnitHandle(ht, tickerId, 'targ');
+                targetId = GetHandleId(target);
+
+                level = LoadInteger(ht, tickerId, 'levl');
+                
+                // Считаем количество времени, прошедшего с момента каста для нанесения урона
+                time = LoadReal(ht, tickerId, 'perd') + timerPeriod;
+                if (time >= damagePeriod){
+                    time = 0;
+                    onDamage();
+                }
+                SaveReal(ht, tickerId, 'perd', time);
+                
+                // Двигаем молнию за целями
+                xc = GetUnitX(caster);
+                yc = GetUnitY(caster);
+                zc = GetUnitZ(caster) + lightingZ;
+                xt = GetUnitX(target);
+                yt = GetUnitY(target);
+                zt = GetUnitZ(target) + lightingZ;
+                
+                MoveLightningEx(LoadLightningHandle(ht, tickerId, 'ligt'), true, xc, yc, zc, xt, yt, zt);
+                
+                // Считаем прошедшее время
+                time = LoadReal(ht, tickerId, 'time') + timerPeriod;
+                SaveReal(ht, tickerId, 'time', time);
+                
+                // При несоблюдении одного из условий прекращаем действие заклинаия
+                if (
+                    !UnitAlive(caster) ||
+                    !UnitAlive(target) ||
+                    time >= LoadReal(ht, tickerId, 'expr') ||
+                    Distance(xc, yc, zc, xt, yt, zt) >= LoadReal(ht, tickerId, 'dist') ||
+                    GetUnitCurrentOrder(caster) == 851973/*stunned*/
+                ) destroy(ticker);
+            });
         });
 
         t = null;

@@ -1,0 +1,179 @@
+/*
+native GetWidgetModelObjectPositionX                    takes widget whichWidget, string whichObject returns real
+native GetWidgetModelObjectPositionY                    takes widget whichWidget, string whichObject returns real
+native GetWidgetModelObjectPositionZ                    takes widget whichWidget, string whichObject returns real
+native GetWidgetModelObjectPositionLoc                    takes widget whichWidget, string whichObject returns location
+*/
+
+library SpellDrainLife requires optional HandleHT {
+    /* === Настройки заклинания === */
+
+    constant integer abilityId = 'SUdl'; // Равкод способности
+    constant string lightingType = "DRAL"; // Тип молнии
+    constant real timerPeriod = .05; // Частота срабатывания таймера
+    constant real damagePeriod = 1; // Частота нанесения урона
+
+    constant string casterEffectPath = "Abilities\\Spells\\Other\\Drain\\DrainCaster.mdl";
+    constant string casterEffectAttach = "chest";
+    constant string targetEffectPath = "Abilities\\Spells\\Other\\Drain\\DrainTarget.mdl";
+    constant string targetEffectAttach = "chest";
+
+    // Время действия
+    function getExpireTime(unit caster, integer level) -> real {
+        return I2R(5+level);
+    }
+    
+    // Максимальная дальность
+    function getMaxDistance(unit caster, integer level) -> real {
+        return I2R(1000 + 200*level);
+    }
+    
+    // Функция, вызываемая при нанесении урона
+    function onDamage(unit caster, unit target, integer level) {
+        real damage = 20 + level*20; // 40/60/80
+        UnitDamageTarget(caster, target, damage, false, true, ATTACK_TYPE_MAGIC, DAMAGE_TYPE_NORMAL, WEAPON_TYPE_WHOKNOWS);
+        SetWidgetLife(caster, GetWidgetLife(caster) + damage);
+    }
+
+    /* === Реализация заклинания  === */
+    
+    hashtable ht; // Хэштаблица для записи данных на хэндл юнита
+    key drainKey; // Ключ для хранения структуры на юните
+    location loc = Location(0, 0); // Точка для получения высоты
+
+    // Реализуем свою функцию получения высоты юнита, чтоб не тянуть зависимости
+    function GetUnitZ(unit target) -> real {
+        MoveLocation(loc, GetUnitX(target), GetUnitY(target));
+        return GetLocationZ(loc) + GetUnitFlyHeight(target);
+    }
+
+    // Реализуем свою функцию получения квадрата расстояния в 3D, чтоб не считать корень
+    function Distance(real xa, real ya, real za, real xb, real yb, real zb) -> real {
+        real dx = xb - xa;
+        real dy = yb - ya;
+        real dz = zb - za;
+        return dx*dx + dy*dy + dz*dz;
+    }
+
+    // Создаём структуру, которая собственно и реализует всё заклинание
+    struct drain {
+        unit caster, target;
+        real period = 0, time = 0, expire, maxDist;
+        integer level;
+        lightning lighting;
+        timer tmr;
+        effect effectCaster, effectTarget;
+
+        // Реализуем свой метод удаления данных структуры
+        method destroy(){
+            RemoveSavedInteger(ht, GetHandleId(caster), drainKey);
+            PauseTimer(tmr); DestroyTimer(tmr); tmr = null;
+            DestroyLightning(lighting); lighting = null;
+            DestroyEffect(effectCaster); effectCaster = null;
+            DestroyEffect(effectTarget); effectTarget = null;
+            caster = null;
+            target = null;
+            deallocate();
+        }
+
+        // Реализуем метод, который будет вызван на каждый тик таймера
+        static method callback(){
+            timer t = GetExpiredTimer();
+            integer timerId = GetHandleId(t);
+            real xc, yc, zc, xt, yt, zt;
+            drain this = LoadInteger(ht, timerId, 0); // Получаем структуру из таймера
+            t = null; // Освобождаем память как можно скорее
+            
+            // Считаем количество времени, прошедшего с момента каста для нанесения урона
+            period += timerPeriod;
+            if (period >= damagePeriod){
+                period = 0;
+                onDamage(caster, target, level);
+            }
+            
+            // Двигаем молнию за целями
+            xc = GetUnitX(caster);
+            yc = GetUnitY(caster);
+            zc = GetUnitZ(caster) + lightingZ;
+            xt = GetUnitX(target);
+            yt = GetUnitY(target);
+            zt = GetUnitZ(target) + lightingZ;
+            
+            MoveLightningEx(lighting, true, xc, yc, zc, xt, yt, zt);
+            
+            time += timerPeriod;
+
+            // При не соблюдении одного из условий прекращаем действие заклинаия
+            if (
+                !UnitAlive(caster) ||
+                !UnitAlive(target) ||
+                time >= expire ||
+                Distance(xc, yc, zc, xt, yt, zt) >= maxDist ||
+                GetUnitCurrentOrder(caster) == 851973/*stunned*/
+            ) {
+                FlushChildHashtable(ht, timerId); // Стираем все данные с хэндла таймера
+                destroy(); // Уничтожаем экземпляр структуры
+            }
+        }
+    
+        // Реализуем свой метод создания структуры
+        static method create(unit caster, unit target) -> thistype {
+            thistype this;
+            integer casterId = GetHandleId(caster);
+
+            // Удаляем предыдущую структуру, если она существует
+            if (HaveSavedInteger(ht, casterId, drainKey)) {
+                this = LoadInteger(ht, casterId, drainKey);
+                destroy();
+            }
+
+            this = thistype.allocate(); // Создаём новый экземпляр структуры
+
+            // Устанавливаем стартовые значения свойств
+            this.caster = caster;
+            this.target = target;
+            level = GetUnitAbilityLevel(caster, abilityId);
+            maxDist = getMaxDistance(caster, level);
+            maxDist *= maxDist; // Используем квадрат расстояния, чтоб не считать корень
+            expire = getExpireTime(caster, level);
+            lighting = AddLightningEx(
+                lightingType,
+                true,
+                GetUnitX(caster),
+                GetUnitY(caster),
+                GetUnitZ(caster) + lightingZ,
+                GetUnitX(target),
+                GetUnitY(target),
+                GetUnitZ(target) + lightingZ
+            );
+            effectCaster = AddSpecialEffectTarget(casterEffectPath, caster, casterEffectAttach);
+            effectTarget = AddSpecialEffectTarget(targetEffectPath, target, targetEffectAttach);
+            
+            // Создаём таймер
+            tmr = CreateTimer();
+            SaveInteger(ht, casterId, drainKey, this); // Сохраняем структуру на юнита
+            SaveInteger(ht, GetHandleId(tmr), 0, this); // Сохраняем стурктуру на таймер
+            TimerStart(tmr, timerPeriod, true, function drain.callback); // Запускаем таймер и передаём в него callback
+            return this;
+        }
+    }
+
+    function onInit(){
+        trigger t = CreateTrigger();
+        integer i;
+
+        // Используем одну хэштаблицу для хранения данных на хэндлах
+        // При её отсутствии инициализируем новую
+        static if (LIBRARY_HandleHT) ht = HandleHT;
+        else ht = InitHashtable();
+
+        // Слушаем событие каста для всех игроков, экономя лишний вызов функции
+        for (0 <= i < bj_MAX_PLAYER_SLOTS) TriggerRegisterPlayerUnitEvent(t, Player(i), EVENT_PLAYER_UNIT_SPELL_EFFECT, null);
+        TriggerAddAction(t, function(){
+            if (abilityId != GetSpellAbilityId()) return; // Используем return чтоб не использовать Condition
+            drain.create(GetTriggerUnit(), GetSpellTargetUnit()); // Создаём новый экземпляр структуры
+        });
+
+        t = null;
+    }
+}
