@@ -22,12 +22,12 @@ library SpellDrainLife requires optional HandleHT {
     function getExpireTime() -> real {
         return I2R(5+level);
     }
-    
+
     // Максимальная дальность
     function getDistanceMax() -> real {
         return I2R(1000 + 200*level);
     }
-    
+
     // Функция, вызываемая при нанесении урона
     function onDamage() {
         real damage = 20 + level*20; // 40/60/80
@@ -110,7 +110,6 @@ library SpellDrainLife requires optional HandleHT {
             SaveEffectHandle(ht, tickerId, 'effC', AddSpecialEffectTarget(casterEffectPath, caster, casterEffectAttach));
             SaveEffectHandle(ht, tickerId, 'effT', AddSpecialEffectTarget(targetEffectPath, target, targetEffectAttach));
 
-
             TimerStart(ticker, timerPeriod, true, function() {
                 real xc, yc, zc, xt, yt, zt, time;
 
@@ -138,9 +137,9 @@ library SpellDrainLife requires optional HandleHT {
                 xt = GetWidgetModelObjectPositionX(target, targetEffectAttach);
                 yt = GetWidgetModelObjectPositionY(target, targetEffectAttach);
                 zt = GetWidgetModelObjectPositionZ(target, targetEffectAttach);
-                
+
                 MoveLightningEx(LoadLightningHandle(ht, tickerId, 'ligt'), true, xc, yc, zc, xt, yt, zt);
-                
+
                 // Считаем прошедшее время
                 time = LoadReal(ht, tickerId, 'time') + timerPeriod;
                 SaveReal(ht, tickerId, 'time', time);
